@@ -97,7 +97,11 @@ cd "\$RAIZ"
 clonar() {  # url, rama, destino
   if [ -d "\$3/.git" ]; then
     git -C "\$3" remote set-url origin "\$1"
-    git -C "\$3" fetch --depth 1 origin "\$2"
+    # Refspec EXPLICITO: el clon inicial es --single-branch, asi que su
+    # remote.origin.fetch solo cubre la rama original y un "fetch origin <otra>"
+    # no crea refs/remotes/origin/<otra>. Sin esto, cambiar de rama en una
+    # instancia ya desplegada falla con "is not a commit".
+    git -C "\$3" fetch --depth 1 origin "+refs/heads/\$2:refs/remotes/origin/\$2"
     git -C "\$3" checkout -B "\$2" "origin/\$2"
     git -C "\$3" reset --hard "origin/\$2"
   else

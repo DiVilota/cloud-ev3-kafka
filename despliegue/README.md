@@ -20,6 +20,37 @@ Al terminar de trabajar, **apagar la instancia**: es lo que consume el credito.
 aws ec2 stop-instances --region $REGION --instance-ids $INSTANCIA
 ```
 
+## Desplegar una rama distinta
+
+`02` clona por defecto `ev3-integracion` en backend y consola, y `react` en la
+tienda. Para probar otra rama sin tocar el script:
+
+```bash
+RAMA_BACKEND=p2-despliegue ./02-sistema-ev3.sh
+```
+
+Lo mismo con `RAMA_CONSOLA`, `RAMA_TIENDA` y los `REPO_*`.
+
+## Comprobar que el despliegue quedo bien
+
+`prueba-humo.py` llama a las API por HTTP y **no aplica CORS**, igual que `curl`:
+puede dar `TODO OK` con los frontends rotos en el navegador. Fue el defecto 2 del
+doc 17 y volvio a aparecer aqui. Comprueba siempre las dos cosas:
+
+```bash
+IP=<ip>
+# 1. Los frontends tienen que servir la IP publica, no localhost
+curl -s http://$IP:8091/config.js
+curl -s http://$IP:8090/config.js
+# 2. Actuator tiene que devolver la cabecera CORS para el origen de la tienda
+curl -s -D - -o /dev/null -H "Origin: http://$IP:8091" http://$IP:8083/actuator/health \
+  | grep -i access-control-allow-origin
+```
+
+Si `config.js` dice `localhost`, la instancia esta corriendo un
+`docker-compose.yml` sin `HOST_PUBLICO`: revisa que la rama desplegada sea la
+correcta y que este **subida al remoto** (`02` clona de GitHub, no de tu disco).
+
 ## La decision de fondo: un solo modo de levantar el sistema
 
 El despliegue anterior (scripts `01`–`05`, para la arquitectura de tres servicios)
