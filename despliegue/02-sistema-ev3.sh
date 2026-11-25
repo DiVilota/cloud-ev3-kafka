@@ -63,7 +63,34 @@ ok "instancia $INSTANCIA, IP $IP"
 REMOTO=$(cat <<REMOTE_EOF
 #!/bin/bash
 set -euxo pipefail
-RAIZ=/home/ec2-user/pedidos360
+
+# El user-data de 01 instala Docker y Compose, y puede no haber terminado: la
+# instancia responde a SSM antes de que cloud-init acabe. Se comprueba el SOCKET
+# (docker info), no solo que el binario exista: "docker compose version" responde
+# aun sin permisos sobre /var/run/docker.sock y dejaba pasar la espera.
+for _ in \$(seq 1 60); do
+  [ -f /var/lib/cloud/instance/PEDIDOS360_LISTO ] && docker info >/dev/null 2>&1 && break
+  sleep 10
+done
+docker info >/dev/null 2>&1 || { echo "cloud-init no dejo Docker listo"; exit 1; }
+
+# buildx: AL2023 trae uno VIEJO en /usr/libexec (0.12.2) y Compose v2+ exige
+# 0.17 o mas nuevo para construir. No se puede preguntar "existe buildx?": existe
+# y no sirve. Se instala siempre la version fija en /usr/local/lib, que tiene
+# precedencia sobre /usr/libexec. Version clavada a proposito: con "latest" el
+# despliegue depende de lo que se publique hoy, que es como aparecio este fallo.
+BUILDX_VER=v0.19.3
+mkdir -p /usr/local/lib/docker/cli-plugins
+curl -sSL "https://github.com/docker/buildx/releases/download/\${BUILDX_VER}/buildx-\${BUILDX_VER}.linux-amd64" \
+  -o /usr/local/lib/docker/cli-plugins/docker-buildx
+chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
+docker buildx version || { echo "no pude instalar buildx"; exit 1; }
+docker compose version || { echo "falta el plugin compose"; exit 1; }
+
+# Corre como ROOT, no como ec2-user: el "usermod -aG docker ec2-user" del
+# user-data no se aplica a una sesion ya abierta, y SSM entra como root igual.
+# Por eso los repos NO van en /home/ec2-user.
+RAIZ=/opt/pedidos360
 mkdir -p "\$RAIZ"
 cd "\$RAIZ"
 
@@ -86,7 +113,7 @@ cd "\$RAIZ/cloud-ev3-kafka"
 # Secretos: distintos a los de desarrollo (lo pide P2) y estables entre
 # re-ejecuciones. Si se regenerara la cookie de Erlang en cada corrida, los
 # tres nodos de RabbitMQ dejarian de reconocerse al reiniciar el cluster.
-SECRETOS=/home/ec2-user/.pedidos360-secretos
+SECRETOS=/root/.pedidos360-secretos
 if [ ! -f "\$SECRETOS" ]; then
   {
     echo "RABBITMQ_ERLANG_COOKIE=\$(openssl rand -hex 24)"
@@ -128,10 +155,12 @@ REMOTE_EOF
 B64=$(printf '%s' "$REMOTO" | base64 -w0 2>/dev/null || printf '%s' "$REMOTO" | base64 | tr -d '\n')
 
 log "Lanzando el arranque en la instancia (build de 9 imagenes: 15-25 min)"
+LOG=/var/log/pedidos360-arranque.log
+FINF=/var/log/pedidos360-arranque.fin
 CMD=$(aws ssm send-command --region "$REGION" --instance-ids "$INSTANCIA" \
   --document-name AWS-RunShellScript \
   --comment "pedidos360 EV3: clonar y levantar" \
-  --parameters "commands=[\"rm -f /home/ec2-user/arranque.log /home/ec2-user/arranque.fin\",\"echo $B64 | base64 -d > /home/ec2-user/arranque.sh\",\"chown ec2-user /home/ec2-user/arranque.sh && chmod +x /home/ec2-user/arranque.sh\",\"su - ec2-user -c 'nohup bash -c \\\"bash /home/ec2-user/arranque.sh > /home/ec2-user/arranque.log 2>&1; echo \\\$? > /home/ec2-user/arranque.fin\\\" >/dev/null 2>&1 &'\"]" \
+  --parameters "commands=[\"rm -f $LOG $FINF\",\"echo $B64 | base64 -d > /root/arranque.sh\",\"chmod +x /root/arranque.sh\",\"nohup bash -c 'bash /root/arranque.sh > $LOG 2>&1; echo \$? > $FINF' >/dev/null 2>&1 &\",\"sleep 2; echo lanzado\"]" \
   --query 'Command.CommandId' --output text)
 ok "comando $CMD enviado"
 
@@ -140,7 +169,7 @@ mirar(){ # un comando corto para leer el estado, sincronico
   local c
   c=$(aws ssm send-command --region "$REGION" --instance-ids "$INSTANCIA" \
     --document-name AWS-RunShellScript \
-    --parameters 'commands=["cat /home/ec2-user/arranque.fin 2>/dev/null || echo CORRIENDO","tail -n 3 /home/ec2-user/arranque.log 2>/dev/null"]' \
+    --parameters "commands=[\"cat $FINF 2>/dev/null || echo CORRIENDO\",\"tail -n 3 $LOG 2>/dev/null\"]" \
     --query 'Command.CommandId' --output text)
   sleep 4
   aws ssm get-command-invocation --region "$REGION" --command-id "$c" \

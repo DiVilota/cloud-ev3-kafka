@@ -63,12 +63,29 @@ log "Descubriendo VPC y subred por defecto"
 VPC=$(aws ec2 describe-vpcs --region "$REGION" --filters Name=isDefault,Values=true \
         --query 'Vpcs[0].VpcId' --output text)
 [ "$VPC" != "None" ] || die "no hay VPC por defecto en $REGION"
-SUBNET=$(aws ec2 describe-subnets --region "$REGION" \
-          --filters Name=vpc-id,Values="$VPC" Name=default-for-az,Values=true \
-          --query 'Subnets[0].SubnetId' --output text)
-[ "$SUBNET" != "None" ] || SUBNET=$(aws ec2 describe-subnets --region "$REGION" \
-          --filters Name=vpc-id,Values="$VPC" --query 'Subnets[0].SubnetId' --output text)
-ok "VPC $VPC / subred $SUBNET"
+
+# No vale tomar "la primera subred por defecto": no todas las zonas ofrecen todos
+# los tipos. us-east-1e, por ejemplo, no tiene t3.large, y RunInstances falla con
+# "Unsupported" despues de haber creado ya el security group. Se pregunta a AWS
+# que zonas ofrecen $TIPO y se elige una subred que este en alguna de ellas.
+log "Buscando una zona que ofrezca $TIPO"
+ZONAS_OK=$(aws ec2 describe-instance-type-offerings --region "$REGION" \
+            --location-type availability-zone \
+            --filters "Name=instance-type,Values=$TIPO" \
+            --query 'InstanceTypeOfferings[].Location' --output text)
+[ -n "$ZONAS_OK" ] || die "$TIPO no se ofrece en ninguna zona de $REGION"
+ok "zonas con $TIPO: $(echo "$ZONAS_OK" | tr '\t' ' ')"
+
+SUBNET=""
+for Z in $ZONAS_OK; do
+  SUBNET=$(aws ec2 describe-subnets --region "$REGION" \
+            --filters Name=vpc-id,Values="$VPC" Name=availability-zone,Values="$Z" \
+            --query 'Subnets[0].SubnetId' --output text 2>/dev/null || echo None)
+  if [ "$SUBNET" != "None" ] && [ -n "$SUBNET" ]; then ZONA="$Z"; break; fi
+  SUBNET=""
+done
+[ -n "$SUBNET" ] || die "ninguna subred de $VPC esta en una zona que ofrezca $TIPO"
+ok "VPC $VPC / subred $SUBNET (zona $ZONA)"
 
 # ------------------------------------------------------- security group
 log "Security group $NOMBRE_SG"
@@ -120,11 +137,16 @@ dnf update -y
 dnf install -y docker git
 systemctl enable --now docker
 usermod -aG docker ec2-user
-# Compose v2 como plugin del CLI (docker compose, sin guion)
+# Compose v2 y buildx como plugins del CLI. Versiones FIJAS: con "latest" el
+# despliegue depende de lo que se publique hoy (un Compose nuevo empezo a exigir
+# buildx 0.17+, que AL2023 no trae, y rompio el build a mitad del arranque).
 mkdir -p /usr/local/lib/docker/cli-plugins
-curl -sSL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64" \
+curl -sSL "https://github.com/docker/compose/releases/download/v2.31.0/docker-compose-linux-x86_64" \
   -o /usr/local/lib/docker/cli-plugins/docker-compose
 chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+curl -sSL "https://github.com/docker/buildx/releases/download/v0.19.3/buildx-v0.19.3.linux-amd64" \
+  -o /usr/local/lib/docker/cli-plugins/docker-buildx
+chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
 touch /var/lib/cloud/instance/PEDIDOS360_LISTO
 UD
 )
