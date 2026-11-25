@@ -110,7 +110,10 @@ x-spring-env: &spring-env
   # Los cuatro origenes desde los que un navegador llama a la API: consola y
   # tienda, en dev (Vite) y en Docker (nginx). El CORS declara rutas concretas y
   # no un comodin, asi que cambiar un puerto publicado obliga a cambiar esto.
-  CORS_ORIGENES: "http://localhost:5173,http://localhost:5174,http://localhost:8090,http://localhost:8091"
+  # HOST_PUBLICO es la direccion por la que el NAVEGADOR llega al sistema:
+  # localhost en desarrollo, la IP publica de la EC2 en AWS. Los puertos 5173 y
+  # 5174 (Vite) se dejan siempre: solo sirven en local y no estorban en AWS.
+  CORS_ORIGENES: "http://localhost:5173,http://localhost:5174,http://${HOST_PUBLICO:-localhost}:8090,http://${HOST_PUBLICO:-localhost}:8091"
   # La JVM respeta el mem_limit del contenedor en vez de calcular su heap sobre
   # la RAM del host (que en un contenedor no le pertenece).
   JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
@@ -328,9 +331,9 @@ services:
       ANTIFRAUDE_PEPPER: "${ANTIFRAUDE_PEPPER:-pedidos360-dev}"
       # El returnUrl y los FRONT_URL los abre el NAVEGADOR, no otro contenedor:
       # tienen que ser direcciones alcanzables desde el host.
-      PAGOS_RETURN_URL: "http://localhost:8083/api/pagos/commit"
-      FRONT_URL: "http://localhost:8090"
-      FRONT_URL_TIENDA: "http://localhost:8091"
+      PAGOS_RETURN_URL: "http://${HOST_PUBLICO:-localhost}:8083/api/pagos/commit"
+      FRONT_URL: "http://${HOST_PUBLICO:-localhost}:8090"
+      FRONT_URL_TIENDA: "http://${HOST_PUBLICO:-localhost}:8091"
     depends_on:
       mysql-db: { condition: service_healthy }
       crear-topicos: { condition: service_completed_successfully }
@@ -441,11 +444,11 @@ services:
     container_name: tienda
     ports: ["8091:80"]
     environment:
-      API_PRODUCTOS: "http://localhost:8086"
-      API_CARRITO: "http://localhost:8087"
-      API_PAGOS: "http://localhost:8083"
-      API_RECOMENDACIONES: "http://localhost:8084"
-      API_NOTIFICACIONES: "http://localhost:8088"
+      API_PRODUCTOS: "http://${HOST_PUBLICO:-localhost}:8086"
+      API_CARRITO: "http://${HOST_PUBLICO:-localhost}:8087"
+      API_PAGOS: "http://${HOST_PUBLICO:-localhost}:8083"
+      API_RECOMENDACIONES: "http://${HOST_PUBLICO:-localhost}:8084"
+      API_NOTIFICACIONES: "http://${HOST_PUBLICO:-localhost}:8088"
     depends_on:
       ms-productos: { condition: service_healthy }
       ms-carrito: { condition: service_healthy }
@@ -458,14 +461,15 @@ services:
     container_name: consola
     ports: ["8090:80"]
     environment:
-      API_PAGOS: "http://localhost:8083"
-      API_RECOMENDACIONES: "http://localhost:8084"
-      API_ADMIN: "http://localhost:8085"
-      API_PRODUCTOS: "http://localhost:8086"
-      API_RABBIT: "http://localhost:8089"
+      API_PAGOS: "http://${HOST_PUBLICO:-localhost}:8083"
+      API_RECOMENDACIONES: "http://${HOST_PUBLICO:-localhost}:8084"
+      API_ADMIN: "http://${HOST_PUBLICO:-localhost}:8085"
+      API_PRODUCTOS: "http://${HOST_PUBLICO:-localhost}:8086"
+      API_RABBIT: "http://${HOST_PUBLICO:-localhost}:8089"
+      API_NOTIFICACIONES: "http://${HOST_PUBLICO:-localhost}:8088"
       # Por defecto, el WebSocket local de ms-recomendaciones. En AWS, el wss://
       # del API Gateway que alimenta la Lambda.
-      WS_URL: "${WS_URL:-ws://localhost:8084/ws/metricas}"
+      WS_URL: "${WS_URL:-ws://${HOST_PUBLICO:-localhost}:8084/ws/metricas}"
     depends_on:
       ms-pago: { condition: service_healthy }
       ms-recomendaciones: { condition: service_healthy }
