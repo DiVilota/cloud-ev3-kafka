@@ -120,7 +120,12 @@ x-spring-env: &spring-env
   # El ultimo es la tienda por HTTPS (login con Microsoft Azure Entra ID, que
   # solo acepta redirect URIs HTTPS fuera de localhost). Sin certificado montado
   # ese puerto no responde, pero el origen en la lista no estorba.
-  CORS_ORIGENES: "http://localhost:5173,http://localhost:5174,http://${HOST_PUBLICO:-localhost}:8090,http://${HOST_PUBLICO:-localhost}:8091,${ORIGEN_TIENDA:-http://${HOST_PUBLICO:-localhost}:8091},https://${HOST_PUBLICO:-localhost}:${PUERTO_TIENDA_HTTPS:-8443}"
+  # ORIGEN_GATEWAY es la tienda servida por la URL de la etapa del API Gateway
+  # (despliegue/20): https://<api>.execute-api.<region>.amazonaws.com, sin la
+  # etapa, porque un origen no lleva ruta. Aunque llame a las API de su mismo
+  # origen, el navegador manda Origin en los POST y Spring lo valida. El valor
+  # por defecto repite uno de la lista para no dejar un origen vacio.
+  CORS_ORIGENES: "http://localhost:5173,http://localhost:5174,http://${HOST_PUBLICO:-localhost}:8090,http://${HOST_PUBLICO:-localhost}:8091,${ORIGEN_TIENDA:-http://${HOST_PUBLICO:-localhost}:8091},https://${HOST_PUBLICO:-localhost}:${PUERTO_TIENDA_HTTPS:-8443},${ORIGEN_GATEWAY:-http://localhost:5173}"
   # La JVM respeta el mem_limit del contenedor en vez de calcular su heap sobre
   # la RAM del host (que en un contenedor no le pertenece).
   JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
