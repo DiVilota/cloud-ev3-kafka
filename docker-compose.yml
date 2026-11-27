@@ -117,7 +117,10 @@ x-spring-env: &spring-env
   # Origin al servir la tienda. Es una variable aparte y no "host:puerto" porque
   # Spring compara el origen como texto: si la tienda se publica en el puerto 80
   # el navegador manda "http://IP" SIN puerto, y "http://IP:80" no coincide.
-  CORS_ORIGENES: "http://localhost:5173,http://localhost:5174,http://${HOST_PUBLICO:-localhost}:8090,http://${HOST_PUBLICO:-localhost}:8091,${ORIGEN_TIENDA:-http://${HOST_PUBLICO:-localhost}:8091}"
+  # El ultimo es la tienda por HTTPS (login con Microsoft Azure Entra ID, que
+  # solo acepta redirect URIs HTTPS fuera de localhost). Sin certificado montado
+  # ese puerto no responde, pero el origen en la lista no estorba.
+  CORS_ORIGENES: "http://localhost:5173,http://localhost:5174,http://${HOST_PUBLICO:-localhost}:8090,http://${HOST_PUBLICO:-localhost}:8091,${ORIGEN_TIENDA:-http://${HOST_PUBLICO:-localhost}:8091},https://${HOST_PUBLICO:-localhost}:${PUERTO_TIENDA_HTTPS:-8443}"
   # La JVM respeta el mem_limit del contenedor en vez de calcular su heap sobre
   # la RAM del host (que en un contenedor no le pertenece).
   JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
@@ -453,7 +456,12 @@ services:
     # desarrollo 8091 (el 80 del host suele estar tomado en Windows); en AWS se
     # pone 80 en el .env para que la URL de la demo no muestre puerto. Al
     # cambiarlo hay que cambiar tambien ORIGEN_TIENDA (CORS y vuelta de Webpay).
-    ports: ["${PUERTO_TIENDA:-8091}:80"]
+    # PUERTO_TIENDA_HTTPS: la misma tienda con TLS, para el login con Microsoft
+    # (Azure exige HTTPS). El entrypoint solo abre el 443 si encuentra
+    # tienda.crt y tienda.key en TIENDA_SSL_DIR; en AWS es un certificado
+    # autofirmado para la IP en /opt/pedidos360/ssl (ver despliegue/19-...).
+    ports: ["${PUERTO_TIENDA:-8091}:80", "${PUERTO_TIENDA_HTTPS:-8443}:443"]
+    volumes: ["${TIENDA_SSL_DIR:-./tienda-ssl}:/etc/nginx/ssl:ro"]
     environment:
       API_PRODUCTOS: "${API_BASE:-http://${HOST_PUBLICO:-localhost}:8086}"
       API_CARRITO: "${API_BASE:-http://${HOST_PUBLICO:-localhost}:8087}"

@@ -30,3 +30,6 @@ front/
 
 # Estado del lab vigente: IDs e IP que cambian en cada arranque
 despliegue/.ev3-estado.env
+
+# Certificado TLS de la tienda (despliegue/19-https-tienda.sh): nunca al repo.
+tienda-ssl/
