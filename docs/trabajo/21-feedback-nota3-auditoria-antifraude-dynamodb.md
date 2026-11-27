@@ -74,6 +74,18 @@ de Transbank.
 chocan **mientras dura el bloqueo (30 min)**. Se prefiere rechazar de más a cobrar con una
 tarjeta marcada como fraude, y es lo máximo que permite PCI DSS sin guardar el número.
 
+### Ajustes durante la prueba en la tienda
+
+- **La vuelta de Webpay perdía la sesión.** ms-pago redirigía a `http://IP:8091/callback`, pero la
+  tienda se abre por la etapa del API Gateway y la sesión de Cognito vive en el `localStorage` de
+  ese origen. Ahora `URL_TIENDA_PUBLICA` (en el `.env` de la EC2) fija la vuelta a
+  `https://<api>.execute-api.us-east-1.amazonaws.com/desarrollo/callback`.
+- **Botones de demo en el checkout**: *Ráfaga* hace 4 intentos SIMULADA con la tarjeta (órdenes
+  `RAFAGA-*`, que ms-carrito ignora) y *Resetear antifraude* llama a `DELETE /api/alertas`,
+  publicado en el gateway con el authorizer de Cognito (`despliegue/21-reset-antifraude-gateway.sh`).
+- **Campana de notificaciones**: las llamadas ahora mandan el ID token (daban 401 en el gateway).
+  Como el API Gateway REST no transmite SSE, por el gateway la tienda consulta el listado cada 5 s.
+
 Pruebas: `ServicioPagosTest.commitWebpayConTarjetaBloqueadaAnulaYPublicaRechazado`,
 `ServicioPagosTest.simuladaRevisaTambienLaCuentaDelCliente`.
 
