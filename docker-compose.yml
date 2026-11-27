@@ -348,7 +348,11 @@ services:
       # el aterrizaje tras Webpay tambien queda sin puerto en la barra.
       PAGOS_RETURN_URL: "http://${HOST_PUBLICO:-localhost}:8083/api/pagos/commit"
       FRONT_URL: "http://${HOST_PUBLICO:-localhost}:8090"
-      FRONT_URL_TIENDA: "${ORIGEN_TIENDA:-http://${HOST_PUBLICO:-localhost}:8091}"
+      # URL_TIENDA_PUBLICA la pisa cuando la tienda se abre por OTRA direccion
+      # (la etapa del API Gateway, por el login con Cognito/Azure): la sesion
+      # vive en el localStorage de ESE origen, y volver de Webpay a IP:8091 la
+      # pierde. Va con la ruta de la etapa (/desarrollo); /callback lo agrega ms-pago.
+      FRONT_URL_TIENDA: "${URL_TIENDA_PUBLICA:-${ORIGEN_TIENDA:-http://${HOST_PUBLICO:-localhost}:8091}}"
     depends_on:
       mysql-db: { condition: service_healthy }
       crear-topicos: { condition: service_completed_successfully }
