@@ -121,7 +121,7 @@ cd /opt/pedidos360/cloud-ev3-kafka
 MS=\$(docker compose config --format json | python3 -c 'import json,sys; d=json.load(sys.stdin)[\"services\"]; print(\" \".join(s for s,v in d.items() if \"CORS_ORIGENES\" in (v.get(\"environment\") or {})))')
 echo \"ms con CORS: \$MS\"
 docker compose up -d --no-deps --no-build \$MS tienda 2>&1 | tail -15
-docker logs tienda 2>&1 | grep entrypoint | grep -i https || true
+docker logs tienda 2>&1 | grep -E "HTTPS habilitado|sin certificado" || true
 " && ok "recreados" || { err "recreacion"; exit 1; }
 
 log "Listo"
