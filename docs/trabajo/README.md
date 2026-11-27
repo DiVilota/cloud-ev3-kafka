@@ -39,12 +39,18 @@ sí. Este índice es el completo.
 | 19 | Registro de cuentas, y tres errores que se disfrazaban de "microservicio caído" | backend + tienda | [19-registro-y-errores-disfrazados.md](19-registro-y-errores-disfrazados.md) | `ba1b61e` · tienda `4077815`, `5d6a0e5`, `efbff63` |
 | 20 | El puerto de la tienda, y por qué las colas son tres | backend | [20-puerto-de-la-tienda-y-las-tres-colas.md](20-puerto-de-la-tienda-y-las-tres-colas.md) | (esta entrega) |
 
+## Feedback de la nota 3 (27-11)
+
+| # | Tarea | Repo | Documento | Commits |
+|---|---|---|---|---|
+| 21 | Auditoría RabbitMQ → Kafka → DynamoDB, antifraude también en Webpay de la tienda, DynamoDB real, vuelta de Webpay, campana por sondeo, botones de demo | backend + tienda | [21-feedback-nota3-auditoria-antifraude-dynamodb.md](21-feedback-nota3-auditoria-antifraude-dynamodb.md) | `02ec5a4`, `af99b2b`, `961eeb4` · tienda `22d14c1`, `2656ab7`, `d783467` |
+
 Mitades que van juntas: **10 ↔ 16** (origen `TIENDA` y `/callback`), **11 ↔ 16** (recomendaciones
 con motivo), **13/14 ↔ 16** (catálogo, carrito, pedidos), **15 ↔ 16** (campana SSE), **17 ↔ 16**
 (insignia de salud y CORS de Actuator), **11 ↔ P1 de PENDIENTES** (la consola debe pintar el
 snapshot nuevo).
 
-Siguiente número libre: **20**.
+Siguiente número libre: **22**.
 
 ## Lo que conviene saber antes de tocar algo
 
@@ -56,7 +62,8 @@ Siguiente número libre: **20**.
   (doc 17, evidencias en `evidencias/ev3-docker/`) y el despliegue en **AWS** de la cuenta
   851725287694 (`18.211.30.140`, gateway `vih5lem02j`) con los scripts de `despliegue/`,
   el API Gateway y Cognito, verificado el 26/27-11 (docs 18 y 19). **No** se ejecutó el
-  Terraform de telemetría ni DynamoDB real (P3, cerrado por no exigirlo la pauta).
+  Terraform de telemetría (P3, cerrado por no exigirlo la pauta). DynamoDB real sí: 4 tablas en la
+  cuenta 851725287694 desde el 27-11 (doc 21).
 - **Maven con JDK 23 o superior**: los `pom.xml` fijan Lombok 1.18.42 y `<proc>full</proc>`. En
   Windows con git-bash, `cmd.exe /c mvn.cmd …`.
 - **Cada documento tiene una sección "No verificado".** Antes de asumir que algo funciona en un

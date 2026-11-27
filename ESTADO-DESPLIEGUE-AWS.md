@@ -1,5 +1,8 @@
 # Estado del despliegue en AWS — EV3 Pedidos360
 
+> **Este es el lab de respaldo (Ismael, cuenta 471112736485).** El despliegue principal, el que
+> se evalúa, está en [`ESTADO-DESPLIEGUE-DIEGO.md`](ESTADO-DESPLIEGUE-DIEGO.md) (cuenta 851725287694).
+
 Ultima actualizacion: 2026-11-23 16:16 (-03)
 
 ## Donde esta todo
