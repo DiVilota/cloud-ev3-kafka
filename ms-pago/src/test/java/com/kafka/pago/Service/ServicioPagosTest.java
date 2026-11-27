@@ -3,6 +3,7 @@ package com.kafka.pago.Service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -32,6 +33,7 @@ import com.kafka.pago.DTO.TarjetaDTO;
 import com.kafka.pago.DTO.TipoPasarela;
 import com.kafka.pago.Exception.KafkaNoDisponibleException;
 import com.kafka.pago.Exception.TarjetaBloqueadaException;
+import com.kafka.pago.Model.BloqueoTarjeta;
 import com.kafka.pago.Service.PasarelaPago.Redireccion;
 import com.kafka.pago.Service.PasarelaPago.SolicitudCobro;
 import com.kafka.pago.Service.PasarelaWebpay.ConfirmacionWebpay;
@@ -177,6 +179,39 @@ class ServicioPagosTest {
         assertThat(resultado.getValue()).extracting(ResultadoPagoDTO::getIdOrden, ResultadoPagoDTO::getEstado,
                         ResultadoPagoDTO::getMonto, ResultadoPagoDTO::getUltimos4, ResultadoPagoDTO::getPasarela)
                 .containsExactly("TX-9", EstadoResultadoPago.AUTORIZADO, 15000L, "6623", TipoPasarela.WEBPAY);
+    }
+
+    @Test
+    void commitWebpayConTarjetaBloqueadaAnulaYPublicaRechazado() {
+        when(webpay.confirmar("tok")).thenReturn(new ConfirmacionWebpay("AUTHORIZED", "TX-9", "diego@duocuc.cl", 15000L,
+                "1213", "2026-11-22T12:00:00Z", "6623"));
+        BloqueoTarjeta bloqueo = new BloqueoTarjeta();
+        bloqueo.setHuella(huellas.deTarjeta(NUMERO));
+        bloqueo.setUltimos4("6623");
+        bloqueo.setBloqueadoHasta(Instant.parse("2026-11-22T12:30:00Z"));
+        when(antifraude.bloqueoVigentePorUltimos4("6623")).thenReturn(java.util.Optional.of(bloqueo));
+        when(webpay.anular("tok", 15000L)).thenReturn(true);
+
+        ConfirmacionWebpay c = servicio.confirmarWebpay("tok");
+
+        assertThat(c.autorizado()).isFalse();
+        assertThat(c.bloqueadaPorAntifraude()).isTrue();
+        verify(webpay).anular("tok", 15000L);
+        // Un pago con tarjeta bloqueada no levanta el bloqueo ni limpia la ventana.
+        verify(antifraude, never()).gestionarResultadoCallbackPago(anyString(), anyBoolean());
+        ArgumentCaptor<ResultadoPagoDTO> resultado = ArgumentCaptor.forClass(ResultadoPagoDTO.class);
+        verify(productorResultados).publicar(resultado.capture());
+        assertThat(resultado.getValue().getEstado()).isEqualTo(EstadoResultadoPago.RECHAZADO);
+    }
+
+    @Test
+    void simuladaRevisaTambienLaCuentaDelCliente() {
+        doThrow(new TarjetaBloqueadaException(LocalDateTime.of(2026, 11, 22, 12, 30), 4, 30L))
+                .when(antifraude).verificarNoBloqueada(huellas.deCuenta("ismael"));
+
+        assertThatThrownBy(() -> servicio.iniciarPago(peticion(TipoPasarela.SIMULADA, NUMERO, null)))
+                .isInstanceOf(TarjetaBloqueadaException.class);
+        verify(productorIntentos, never()).publicarConConfirmacion(any());
     }
 
     @Test

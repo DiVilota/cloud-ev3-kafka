@@ -1,5 +1,6 @@
 package com.kafka.recomendaciones.Config;
 
+import com.kafka.recomendaciones.Repository.AuditoriaDynamoRepository;
 import com.kafka.recomendaciones.Repository.EventosOperacionesDynamoRepository;
 import com.kafka.recomendaciones.Repository.EventosOperacionesRepository;
 import com.kafka.recomendaciones.Repository.HistorialEventosDynamoRepository;
@@ -15,6 +16,7 @@ import org.springframework.util.StringUtils;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.regions.Region;
@@ -52,9 +54,17 @@ public class DynamoDbConfig {
                             .build());
             log.info("DynamoDB en endpoint propio {} (region {})", endpoint, region);
         } else {
-            // AWS real: cadena por defecto (variables de entorno incluida
-            // AWS_SESSION_TOKEN del Learner Lab, perfil, rol de la instancia EC2).
-            builder.credentialsProvider(DefaultCredentialsProvider.create());
+            // AWS real. En la EC2 del Learner Lab manda el ROL de la instancia
+            // (LabInstanceProfile -> LabRole), que el SDK renueva solo: las
+            // credenciales del lab vencen cada ~4 h y no deben ir en el .env.
+            // Primero el rol; si no hay metadata (corriendo fuera de EC2) cae a la
+            // cadena por defecto (variables de entorno, perfil ~/.aws).
+            builder.credentialsProvider(AwsCredentialsProviderChain.builder()
+                    .reuseLastProviderEnabled(true)
+                    .credentialsProviders(
+                            InstanceProfileCredentialsProvider.create(),
+                            DefaultCredentialsProvider.create())
+                    .build());
             log.info("DynamoDB en AWS, region {}", region);
         }
         return builder.build();
@@ -63,6 +73,15 @@ public class DynamoDbConfig {
     @Bean
     public DynamoDbEnhancedClient clienteDynamoMejorado(DynamoDbClient clienteDynamo) {
         return DynamoDbEnhancedClient.builder().dynamoDbClient(clienteDynamo).build();
+    }
+
+    /** Tabla de auditoría (RabbitMQ -> Kafka -> DynamoDB). Sólo si el flujo está encendido. */
+    @Bean
+    @ConditionalOnProperty(name = "app.auditoria.dynamo.habilitado", havingValue = "true")
+    public AuditoriaDynamoRepository auditoriaDynamoRepository(
+            DynamoDbClient clienteDynamo, DynamoDbEnhancedClient cliente,
+            @Value("${app.dynamodb.tablas.auditoria:pedidos360-auditoria}") String tabla) {
+        return new AuditoriaDynamoRepository(clienteDynamo, cliente, tabla);
     }
 
     @Bean

@@ -289,6 +289,18 @@ public class KafkaConfig {
     }
 
     /**
+     * Auditoría (auditoria-eventos -> DynamoDB): se lee como texto y el
+     * consumidor interpreta el JSON. Mismos reintentos con backoff y DLT
+     * (auditoria-eventos.DLT) que los demás flujos: una caída momentánea de
+     * DynamoDB se reintenta, un JSON roto va directo al DLT.
+     */
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, String> fabricaListenerAuditoria(
+            KafkaTemplate<Object, Object> plantillaDlt) {
+        return crearFabricaListener(fabricaConsumidorDlt(), plantillaDlt);
+    }
+
+    /**
      * El listener del DLT no tiene a donde mandar sus propios fallos: si no puede
      * registrar un mensaje, lo loguea y sigue (sin reintentos ni DLT del DLT).
      */

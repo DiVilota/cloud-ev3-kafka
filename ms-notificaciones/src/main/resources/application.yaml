@@ -21,6 +21,22 @@ spring:
     show-sql: false
     open-in-view: false
 
+  kafka:
+    # Productor del puente de auditoría (RabbitMQ -> Kafka). Mismo criterio que
+    # los otros productores del sistema: acks=all + idempotencia, así un
+    # reintento de red no duplica el evento y la escritura queda en 2 réplicas.
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      retries: 3
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        enable.idempotence: true
+        delivery.timeout.ms: 15000
+        request.timeout.ms: 10000
+        linger.ms: 5
+
   rabbitmq:
     # Los 3 nodos del clúster: si el nodo al que está conectado el servicio cae,
     # el cliente reconecta al siguiente de la lista sin reiniciar el servicio.
@@ -73,6 +89,15 @@ app:
       intervalo-inicial-ms: 1000
       multiplicador: 2.0
       intervalo-maximo-ms: 10000
+
+  auditoria:
+    kafka:
+      # Apagado por defecto (pruebas sin broker); el compose lo enciende.
+      habilitado: ${AUDITORIA_KAFKA_HABILITADO:false}
+      topico: ${AUDITORIA_KAFKA_TOPICO:auditoria-eventos}
+      # Plazo para que el broker confirme; si no confirma, el listener falla y
+      # el reintento del consumidor (3 intentos) vuelve a intentarlo.
+      timeout-confirmacion-segundos: 5
 
   notificaciones:
     # Máximo que devuelve GET /api/notificaciones: la campanita de la tienda

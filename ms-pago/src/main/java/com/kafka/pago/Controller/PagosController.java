@@ -127,6 +127,10 @@ public class PagosController {
             if (c.ultimos4() != null) {
                 destino.queryParam("tarjeta", c.ultimos4());
             }
+            // Para que el frontend explique el rechazo en vez de culpar a Transbank.
+            if (c.bloqueadaPorAntifraude()) {
+                destino.queryParam("motivo", "antifraude");
+            }
             return redirigir(destino);
         } catch (Exception e) {
             // Sin respuesta de Transbank no se conoce la orden: no se publica

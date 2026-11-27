@@ -140,11 +140,29 @@ crear catalogo-productos 3 \
   --config segment.ms=3600000 \
   --config min.cleanable.dirty.ratio=0.1
 
+# --- auditoria-eventos (key: idPedido / usuarioId) ---------------------------
+# Puente RabbitMQ -> Kafka: ms-notificaciones reenvía acá cada mensaje de la
+# cola notificaciones.auditoria (binding "#", copia de todo el exchange).
+# RabbitMQ entrega y borra; Kafka conserva y permite releer (replay) y que
+# varios grupos lo consuman: grupo-auditoria-dynamo (ms-recomendaciones) lo
+# persiste en la tabla DynamoDB pedidos360-auditoria.
+#  3 particiones: volumen bajo (un evento por notificación); la key idPedido
+#    deja todos los eventos de un pedido en la misma partición, en orden.
+#  90 d: misma retención que el registro de ventas; la auditoría tiene que
+#    cubrir al menos el trimestre que se concilia.
+#  lz4: JSON repetitivo, comprime bien con poco CPU.
+crear auditoria-eventos 3 \
+  --config "retention.ms=${NOVENTA_DIAS_MS}" \
+  --config cleanup.policy=delete \
+  --config compression.type=lz4 \
+  --config "segment.bytes=${SEGMENTO_BYTES}"
+
 # --- DLT: una por tópico, con las MISMAS particiones que el original ----------
 crear_dlt interacciones-user 6
 crear_dlt payment-attempts 3
 crear_dlt pagos-resultado 3
 crear_dlt catalogo-productos 3
+crear_dlt auditoria-eventos 3
 
 # --- Evidencia: configuración efectiva de cada tópico -------------------------
 # --describe muestra particiones, líder, réplicas e ISR de cada partición y
@@ -152,7 +170,7 @@ crear_dlt catalogo-productos 3
 # que cada flujo quedó configurado distinto.
 echo
 echo "=== Tópicos de Pedidos360 (describe) ==="
-for t in interacciones-user payment-attempts pagos-resultado catalogo-productos; do
+for t in interacciones-user payment-attempts pagos-resultado catalogo-productos auditoria-eventos; do
   kafka-topics --bootstrap-server "${BOOTSTRAP}" --describe --topic "${t}"
   kafka-topics --bootstrap-server "${BOOTSTRAP}" --describe --topic "${t}.DLT"
 done

@@ -371,6 +371,8 @@ services:
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY:-local}"
       AWS_SESSION_TOKEN: "${AWS_SESSION_TOKEN:-}"
       DYNAMODB_PUBLICAR_OPERACIONES: "${DYNAMODB_PUBLICAR_OPERACIONES:-false}"
+      # Consumidor de auditoria-eventos (Kafka) -> tabla pedidos360-auditoria.
+      AUDITORIA_DYNAMO_HABILITADO: "true"
     depends_on:
       dynamodb-local: { condition: service_started }
       crear-topicos: { condition: service_completed_successfully }
@@ -428,7 +430,11 @@ services:
       <<: *spring-env
       SERVER_PORT: 8088
       SPRING_DATASOURCE_URL: "jdbc:mysql://mysql-db:3306/notificaciones_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+      # Puente de auditoria: la cola notificaciones.auditoria (RabbitMQ) se
+      # reenvia al topico auditoria-eventos (Kafka).
+      AUDITORIA_KAFKA_HABILITADO: "true"
     depends_on:
+      crear-topicos: { condition: service_completed_successfully }
       mysql-db: { condition: service_healthy }
       rabbitmq1: { condition: service_healthy }
       rabbitmq2: { condition: service_healthy }

@@ -35,6 +35,13 @@
             <artifactId>spring-boot-starter-amqp</artifactId>
         </dependency>
 
+        <!-- Puente de auditoría: lo que llega a la cola notificaciones.auditoria
+             (RabbitMQ) se reenvía al tópico auditoria-eventos (Kafka). -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+
         <!-- REST + SSE (SseEmitter vive en Spring MVC; no hace falta WebFlux). -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

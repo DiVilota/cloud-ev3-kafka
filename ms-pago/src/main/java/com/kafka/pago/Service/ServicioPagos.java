@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -18,6 +19,7 @@ import com.kafka.pago.DTO.OrigenPago;
 import com.kafka.pago.DTO.PeticionPagoDTO;
 import com.kafka.pago.DTO.ResultadoPagoDTO;
 import com.kafka.pago.DTO.TipoPasarela;
+import com.kafka.pago.Model.BloqueoTarjeta;
 import com.kafka.pago.Service.PasarelaPago.Decision;
 import com.kafka.pago.Service.PasarelaPago.Redireccion;
 import com.kafka.pago.Service.PasarelaPago.SolicitudCobro;
@@ -78,6 +80,12 @@ public class ServicioPagos {
 
         // 2. Huella bloqueada -> 429 antes de publicar o cobrar nada.
         antifraude.verificarNoBloqueada(huella);
+        // 2b. Con SIMULADA la huella es la tarjeta; se revisa también la cuenta
+        // del cliente, por si la bloqueó una ráfaga hecha con Webpay (donde la
+        // huella ES la cuenta). Así un bloqueo vale en las dos pasarelas.
+        if (numero != null) {
+            antifraude.verificarNoBloqueada(huellas.deCuenta(peticion.getClientId()));
+        }
 
         // 3. Publicar el intento y esperar el ack: sin evidencia en Kafka no se cobra (503).
         IntentoPagoDTO intento = IntentoPagoDTO.builder()
@@ -145,6 +153,16 @@ public class ServicioPagos {
     /** Commit de Webpay: confirma, ajusta el antifraude y publica el resultado. */
     public ConfirmacionWebpay confirmarWebpay(String tokenWs) {
         ConfirmacionWebpay c = pasarelaWebpay.confirmar(tokenWs);
+
+        // La tarjeta recién la conocemos acá (Transbank devuelve los últimos 4).
+        // Si el antifraude la tiene bloqueada, el cobro se anula y el pago se
+        // trata como RECHAZADO: ms-carrito libera el stock y la tienda lo muestra.
+        if (c.autorizado()) {
+            Optional<BloqueoTarjeta> bloqueo = antifraude.bloqueoVigentePorUltimos4(c.ultimos4());
+            if (bloqueo.isPresent()) {
+                return rechazarPorAntifraude(tokenWs, c, bloqueo.get());
+            }
+        }
         boolean autorizado = c.autorizado();
 
         if (c.idCliente() != null && !c.idCliente().isBlank()) {
@@ -168,6 +186,29 @@ public class ServicioPagos {
                 .timestamp(reloj.millis())
                 .build());
         return c;
+    }
+
+    /**
+     * Transbank autorizó, pero con una tarjeta bloqueada por el antifraude: se
+     * pide la anulación (refund) del cobro y se publica RECHAZADO. La ventana
+     * del antifraude NO se limpia: un pago con tarjeta bloqueada no prueba nada.
+     */
+    private ConfirmacionWebpay rechazarPorAntifraude(String tokenWs, ConfirmacionWebpay c, BloqueoTarjeta bloqueo) {
+        log.warn("Pago Webpay RECHAZADO por antifraude: orden={} tarjeta ****{} bloqueada hasta {} (huella={})",
+                c.idOrden(), c.ultimos4(), antifraude.aHoraLocal(bloqueo.getBloqueadoHasta()),
+                HuellaTarjeta.abreviar(bloqueo.getHuella()));
+        boolean anulado = pasarelaWebpay.anular(tokenWs, c.monto());
+        productorResultados.publicar(ResultadoPagoDTO.builder()
+                .idOrden(c.idOrden())
+                .idCliente(c.idCliente())
+                .estado(EstadoResultadoPago.RECHAZADO)
+                .monto(c.monto())
+                .ultimos4(c.ultimos4())
+                .pasarela(TipoPasarela.WEBPAY)
+                .timestamp(reloj.millis())
+                .build());
+        return new ConfirmacionWebpay(ConfirmacionWebpay.BLOQUEADA_ANTIFRAUDE, c.idOrden(), c.idCliente(), c.monto(),
+                anulado ? "ANULADO" : null, c.fecha(), c.ultimos4());
     }
 
     /**

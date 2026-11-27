@@ -48,6 +48,30 @@ public class ServicioAntifraude {
         return bloqueoRepositorio.findById(huella).filter(b -> b.estaVigente(ahora));
     }
 
+    /**
+     * Bloqueo vigente que coincide con los últimos 4 dígitos de una tarjeta.
+     *
+     * Con Webpay, ms-pago nunca ve el número: Transbank lo captura en su
+     * formulario (PCI DSS) y en el commit sólo devuelve los últimos 4. Es la
+     * única forma de reconocer en la tienda una tarjeta que el antifraude ya
+     * bloqueó (por ejemplo con la ráfaga de la consola en modo simulado). Puede
+     * dar falsos positivos entre tarjetas que comparten terminación, pero sólo
+     * mientras dura el bloqueo (30 min): se prefiere rechazar de más a cobrar
+     * con una tarjeta marcada como fraude.
+     */
+    @Transactional(readOnly = true)
+    public Optional<BloqueoTarjeta> bloqueoVigentePorUltimos4(String ultimos4) {
+        if (ultimos4 == null || ultimos4.isBlank()) {
+            return Optional.empty();
+        }
+        String digitos = HuellaTarjeta.normalizar(ultimos4);
+        if (digitos.length() < 4) {
+            return Optional.empty();
+        }
+        return bloqueoRepositorio.findFirstByUltimos4AndBloqueadoHastaAfterOrderByBloqueadoHastaDesc(
+                digitos.substring(digitos.length() - 4), reloj.instant());
+    }
+
     /** Paso 2 del flujo HTTP: si la huella está bloqueada, se corta con 429 antes de publicar nada. */
     @Transactional(readOnly = true)
     public void verificarNoBloqueada(String huella) {

@@ -67,7 +67,8 @@ public class SemillaCatalogo implements CommandLineRunner {
     }
 
     public static List<Producto> productosSemilla(Instant ahora) {
-        // imagenUrl = null a propósito (§7.1): la tienda muestra un placeholder deliberado.
+        // imagenUrl apunta a /img/<id>.svg, servido por el nginx de la tienda desde public/img.
+        // Ruta relativa a proposito: no depende de la IP publica, que cambia en cada arranque.
         return List.of(
                 p("item_101", "Galaxy S24", "Samsung", "celulares", "gama-alta", 649990, 14, 4.7, "6.2\" AMOLED, 256 GB.", ahora),
                 p("item_102", "iPhone 15", "Apple", "celulares", "gama-alta", 799990, 6, 4.8, "Chip A16, cámara de 48 MP.", ahora),
@@ -95,7 +96,7 @@ public class SemillaCatalogo implements CommandLineRunner {
                               long precio, int stock, double calificacion, String descripcion, Instant ahora) {
         return Producto.builder()
                 .id(id).nombre(nombre).marca(marca).categoria(categoria).subcategoria(subcategoria)
-                .precio(precio).stock(stock).calificacion(calificacion).imagenUrl(null)
+                .precio(precio).stock(stock).calificacion(calificacion).imagenUrl("/img/" + id + ".svg")
                 .descripcion(descripcion).actualizadoEn(ahora)
                 .build();
     }

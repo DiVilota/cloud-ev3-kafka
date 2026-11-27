@@ -64,11 +64,38 @@ public class PasarelaWebpay implements PasarelaPago {
     }
 
     /**
+     * Anula (refund) una transacción ya autorizada. Se usa cuando el commit
+     * revela una tarjeta bloqueada por el antifraude. Si Transbank falla se
+     * deja registrado y se sigue: el pago igual queda RECHAZADO del lado nuestro
+     * y la anulación se puede reintentar a mano desde el portal de Transbank.
+     */
+    public boolean anular(String tokenWs, Long monto) {
+        if (monto == null) {
+            return false;
+        }
+        try {
+            var r = transaccion().refund(tokenWs, (double) monto);
+            log.info("Anulación Webpay: token={} tipo={} monto={}", tokenWs, r.getType(), monto);
+            return true;
+        } catch (Exception e) {
+            log.error("No se pudo anular en Transbank (token={}): {}", tokenWs, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Lo que importa del commit. ultimos4 es lo que Transbank llama cardNumber:
      * ya viene recortado a 4 dígitos (o nulo si la transacción fue rechazada).
      */
     public record ConfirmacionWebpay(String estado, String idOrden, String idCliente, Long monto,
                                      String codigoAutorizacion, String fecha, String ultimos4) {
+        /** Estado propio (no de Transbank): autorizado, pero anulado por el antifraude. */
+        public static final String BLOQUEADA_ANTIFRAUDE = "BLOQUEADA_ANTIFRAUDE";
+
+        public boolean bloqueadaPorAntifraude() {
+            return BLOQUEADA_ANTIFRAUDE.equals(estado);
+        }
+
         public boolean autorizado() {
             return "AUTHORIZED".equals(estado);
         }

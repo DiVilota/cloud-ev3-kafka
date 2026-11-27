@@ -47,6 +47,17 @@ public class AlertasService {
         return new ResumenAlertasDTO(bloqueosActivos, vigiladas, alertas);
     }
 
+    /** Borra TODOS los bloqueos e intentos. Solo para demo/desarrollo. */
+    @Transactional
+    public int resetearTodo() {
+        long bloqueos = bloqueoRepositorio.count();
+        long intentos = intentoRepositorio.count();
+        bloqueoRepositorio.deleteAll();
+        intentoRepositorio.deleteAll();
+        log.warn("RESET de alertas: borrados {} bloqueos y {} intentos", bloqueos, intentos);
+        return (int) (bloqueos + intentos);
+    }
+
     private AlertaFraudeDTO aDto(BloqueoTarjeta b, Instant ahora) {
         return new AlertaFraudeDTO(
                 b.getIdCliente(),

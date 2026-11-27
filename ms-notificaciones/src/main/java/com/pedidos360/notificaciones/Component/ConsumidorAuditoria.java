@@ -9,7 +9,8 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Consumidor de notificaciones.auditoria (binding "#": recibe todo).
+ * Consumidor de notificaciones.auditoria (binding "#": recibe todo). Cada
+ * mensaje se registra y se reenvía al tópico Kafka auditoria-eventos.
  *
  * Recibe el Message crudo (fabricaMensajesCrudos): la auditoría tiene que
  * registrar también lo que viene mal formado, así que no puede depender de que
@@ -26,6 +27,7 @@ public class ConsumidorAuditoria {
             containerFactory = "fabricaMensajesCrudos")
     public void auditar(Message mensaje) {
         servicioAuditoria.registrar(
+                mensaje.getMessageProperties().getReceivedExchange(),
                 mensaje.getMessageProperties().getReceivedRoutingKey(),
                 mensaje.getMessageProperties().getMessageId(),
                 new String(mensaje.getBody(), StandardCharsets.UTF_8));

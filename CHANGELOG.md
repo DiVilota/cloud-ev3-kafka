@@ -18,6 +18,26 @@ Lo que se haga desde `PENDIENTES.md` va acá hasta la entrega, que se etiqueta `
 
 ### Agregado
 
+- **Feedback de la nota 3** (doc `21`):
+  - **Auditoría RabbitMQ → Kafka → DynamoDB.** ms-notificaciones reenvía cada mensaje de la cola
+    `notificaciones.auditoria` al tópico nuevo `auditoria-eventos` (3 particiones, RF 3, 90 d, lz4, con
+    DLT). El envío es síncrono con `acks=all`, así que no hay ack en Rabbit hasta que Kafka confirma.
+    ms-recomendaciones (`grupo-auditoria-dynamo`) lo persiste en la tabla DynamoDB
+    `pedidos360-auditoria` y lo expone en `GET /api/auditoria`.
+  - **DynamoDB real en AWS.** ms-recomendaciones deja `dynamodb-local` en la EC2
+    (`DYNAMODB_ENDPOINT=` vacío) y usa el rol de la instancia (`LabRole`). Quedan 4 tablas reales:
+    `HistorialEventos`, `RecomendacionesUsuario`, `EventosOperaciones-desarrollo` y `pedidos360-auditoria`.
+- `DELETE /api/alertas` en ms-pago: limpia bloqueos e intentos (sólo demo).
+
+### Corregido
+
+- **Tarjeta bloqueada por el antifraude se aprobaba en la tienda.** En el commit de Webpay, si los
+  últimos 4 dígitos que devuelve Transbank coinciden con un bloqueo vigente, se anula el cobro
+  (`refund`), se publica `RECHAZADO` y la tienda muestra el motivo. Un Webpay aprobado ya no levanta
+  ese bloqueo. Con SIMULADA se revisa además la cuenta del cliente (bloqueos hechos con Webpay).
+
+### Agregado (anterior)
+
 - **Identidad con Cognito validada en el borde** (doc `18`, `evidencias/56`). User pool reproducible
   con `despliegue/17-cognito-pool.sh`, authorizer `COGNITO_USER_POOLS` en 11 operaciones con
   `despliegue/16-cognito-authorizer.sh`, y la tienda pidiendo el ID token sin SDK. El gateway

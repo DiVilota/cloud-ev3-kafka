@@ -264,3 +264,12 @@ flujo de la demo; los dos primeros pueden aparecer si alguien pregunta "¿y si�
 | Purgar una cola no está protegido | `POST /api/rabbit/colas/notificaciones.cliente/purgar` borra mensajes del sistema | ms-rabbit-admin `ProteccionRecursos` | 15 |
 | `infra/rabbitmq/` y el compose raíz usan los mismos `container_name` | no se pueden levantar a la vez (es esperado, pero no está avisado) | `infra/rabbitmq/docker-compose.yml` | 15 |
 | DynamoDB Local corre `-inMemory` | si se reinicia ese contenedor, las tablas desaparecen y los eventos van al DLT hasta reiniciar ms-recomendaciones | compose, servicio `dynamodb-local` | 11 |
+
+## P10 · Feedback de la nota 3 — ✅ cerrado el 27-11
+
+Detalle en `21-feedback-nota3-auditoria-antifraude-dynamodb.md`.
+
+- [x] Cola RabbitMQ `notificaciones.auditoria` → tópico Kafka `auditoria-eventos` (ms-notificaciones).
+- [x] Tarjeta bloqueada por el antifraude ahora se rechaza en la tienda, con SIMULADA y con Webpay (anulación + `RECHAZADO`).
+- [x] DynamoDB real en AWS: 4 tablas, incluida `pedidos360-auditoria` (Kafka → DynamoDB).
+- [ ] Captura de Webpay rechazado por antifraude en la tienda (`motivo=antifraude`) para `evidencias/`.

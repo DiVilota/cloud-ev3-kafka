@@ -67,6 +67,15 @@ app:
       # Mismo nombre que crea infra/terraform-telemetria (EventosOperaciones-<entorno>),
       # para que la Lambda Procesador lea lo que este servicio escribe.
       operaciones: ${DYNAMODB_TABLA_OPERACIONES:EventosOperaciones-desarrollo}
+      auditoria: ${DYNAMODB_TABLA_AUDITORIA:pedidos360-auditoria}
+
+  auditoria:
+    dynamo:
+      # Consumidor auditoria-eventos -> tabla DynamoDB. Apagado por defecto
+      # (pruebas sin DynamoDB); el compose lo enciende.
+      habilitado: ${AUDITORIA_DYNAMO_HABILITADO:false}
+      topico: auditoria-eventos
+      grupo: grupo-auditoria-dynamo
 
   cors:
     origenes-permitidos: ${CORS_ORIGENES:http://localhost:5173,http://localhost:5174,http://localhost:8090,http://localhost:8091}
